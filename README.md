@@ -1,2 +1,2 @@
 # laitinent.github.io
-for Pages
+Hello INTIP22A6
