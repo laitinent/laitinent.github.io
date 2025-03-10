@@ -1,2 +1,2 @@
 # laitinent.github.io
-Hello INTIP24A6
+Hello INTIM24A6
