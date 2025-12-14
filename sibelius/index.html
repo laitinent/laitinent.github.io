@@ -27,7 +27,7 @@
 
 	<body>
 		<div id="info">
-		<a href="http://threejs.org" target="_blank">three.js</a> - OBJLoader + MTLLoader
+		<a href="http://threejs.org" target="_blank">three.js - Loading ...</a> - OBJLoader + MTLLoader
 		</div>
 		<script type="importmap">
 			{
@@ -55,6 +55,8 @@
 			import { DDSLoader } from 'three/addons/loaders/DDSLoader.js';
 			import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 			import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+			//import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+			
 			var container;//, stats;
 
 			let camera, scene, renderer,controls;
@@ -95,7 +97,7 @@
 
 				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
 				camera.position.z = 250;
-
+				camera.lookAt(new THREE.Vector3(0, 0, 0));
 				// scene
 
 				scene = new THREE.Scene();
@@ -146,6 +148,21 @@
 
 				});
 				
+				//start (glb works, not used still)
+				
+						/* model
+
+						const loader = new GLTFLoader().setPath( './mesh/' );
+						loader.load( 'mesh_glb.glb', async function ( gltf ) {
+							const model = gltf.scene;
+							// wait until the model can be added to the scene without blocking due to shader compilation
+							await renderer.compileAsync( model, camera, scene );
+							scene.add( model );
+							render();			
+						} );  */
+				
+//end
+
 				//
 				
 				var geometry_top = new THREE.CylinderGeometry(50, 50, 25,32,32);
