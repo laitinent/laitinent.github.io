@@ -1,2 +1,2 @@
 # laitinent.github.io
-Hello INTIP23X6
+Various web apps, AR and 3D for example
