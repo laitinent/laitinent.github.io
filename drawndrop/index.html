@@ -70,6 +70,69 @@
       let isDrawing = false;
       let drawPath = [];
 
+      // --- Äänimanageri ---
+      const SoundManager = {
+        ctx: null,
+        init: function () {
+          if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (this.ctx.state === "suspended") {
+            this.ctx.resume();
+          }
+        },
+        playTone: function (freq, type, duration, vol = 0.1) {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.ctx.currentTime + duration
+          );
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        },
+        playDrawComplete: function () {
+          // Iloinen "ding" (C5 -> E5)
+          this.init();
+          const now = this.ctx.currentTime;
+          this.playTone(523.25, "sine", 0.3, 0.1);
+          setTimeout(() => {
+            if (this.ctx) {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = "sine";
+              osc.frequency.setValueAtTime(659.25, this.ctx.currentTime);
+              gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                this.ctx.currentTime + 0.3
+              );
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start();
+              osc.stop(this.ctx.currentTime + 0.4);
+            }
+          }, 100);
+        },
+        playCollision: function (intensity) {
+          this.init();
+          // Matala "tömähdys"
+          // Intensity on n. 0-20+, skaalataan se järkeväksi
+          const vol = Math.min(Math.max(intensity * 0.05, 0.01), 0.3);
+          if (vol < 0.02) return; // Ei ääntä hyvin pienistä osumista
+
+          // Satunnaistetaan hieman taajuutta, jotta kuulostaa orgaanisemmalta
+          const freq = 60 + Math.random() * 40;
+          this.playTone(freq, "triangle", 0.1 + vol * 0.2, vol);
+        },
+      };
+
       const PTM_RATIO = 50;
       const CANVAS_SIZE_M = 10;
 
@@ -160,6 +223,26 @@
         world.sleepMode = p2.World.BODY_SLEEPING;
         dynamicBodies = [];
         createContactMaterials(groundShape.material);
+
+        world.on("impact", function (evt) {
+          const bodyA = evt.bodyA;
+          const bodyB = evt.bodyB;
+
+          // Ohitetaan osumat, jos kumpikaan ei ole dynaaminen (esim. lattia vs staattinen)
+          // Mutta tässä simulaatiossa lattia on staattinen ja piirretyt dynaamisia.
+          // Haluamme äänen kun dynaaminen osuu mihin tahansa.
+
+          // Tarkistetaan iskun voimakkuus
+          // getVelocityAlongNormal() vaatii kontaktiequationin, mutta impact-eventissä
+          // p2.js 0.7.1 ei välttämättä tarjoa sitä suoraan samalla tavalla kaikissa buildessa.
+          // Käytetään yksinkertaista suhteellista nopeutta jos mahdollista.
+
+          // Varmempi tapa p2.js:ssä:
+          if (evt.contactEquation) {
+            const v = Math.abs(evt.contactEquation.getVelocityAlongNormal());
+            SoundManager.playCollision(v);
+          }
+        });
       }
 
       function createContactMaterials(groundMat) {
@@ -399,6 +482,7 @@
         isDrawing = true;
         drawPath = [getPos(e)];
         canvas.setPointerCapture(e.pointerId);
+        SoundManager.init(); // Käynnistä AudioContext user gesturella
       }
 
       function handlePointerMove(e) {
@@ -417,6 +501,7 @@
         canvas.releasePointerCapture(e.pointerId);
         createBodyFromPath(drawPath);
         drawPath = [];
+        SoundManager.playDrawComplete();
       }
 
       function resetSimulation() {
