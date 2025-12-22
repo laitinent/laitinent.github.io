@@ -38,27 +38,70 @@
     <div class="relative w-full max-w-lg aspect-square">
       <canvas id="physicsCanvas" class="w-full h-full block"></canvas>
 
-      <!-- Reset-nappi -->
-      <button
-        id="resetButton"
-        class="absolute top-4 right-4 bg-red-600/80 hover:bg-red-600 text-white p-2 rounded-lg shadow-lg transition backdrop-blur-sm"
-        title="Tyhjennä kenttä"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <!-- Kontrollit -->
+      <div class="absolute top-4 right-4 flex gap-2">
+        <!-- Mute-nappi -->
+        <button
+          id="muteButton"
+          class="bg-slate-600/80 hover:bg-slate-600 text-white p-2 rounded-lg shadow-lg transition backdrop-blur-sm"
+          title="Mykistä äänet"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          />
-        </svg>
-      </button>
+          <!-- Speaker Wave Icon (Sound On) -->
+          <svg
+            id="iconSoundOn"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+            />
+          </svg>
+          <!-- Speaker X Icon (Sound Off) - Hidden by default -->
+          <svg
+            id="iconSoundOff"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6 hidden"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+            />
+          </svg>
+        </button>
+
+        <!-- Reset-nappi -->
+        <button
+          id="resetButton"
+          class="bg-red-600/80 hover:bg-red-600 text-white p-2 rounded-lg shadow-lg transition backdrop-blur-sm"
+          title="Tyhjennä kenttä"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <script>
@@ -73,6 +116,7 @@
       // --- Äänimanageri ---
       const SoundManager = {
         ctx: null,
+        muted: false,
         init: function () {
           if (!this.ctx) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -81,8 +125,12 @@
             this.ctx.resume();
           }
         },
+        toggleMute: function () {
+          this.muted = !this.muted;
+          return this.muted;
+        },
         playTone: function (freq, type, duration, vol = 0.1) {
-          if (!this.ctx) return;
+          if (!this.ctx || this.muted) return;
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.type = type;
@@ -521,6 +569,28 @@
         document
           .getElementById("resetButton")
           .addEventListener("click", resetSimulation);
+
+        document
+          .getElementById("muteButton")
+          .addEventListener("click", function () {
+            const isMuted = SoundManager.toggleMute();
+            const iconOn = document.getElementById("iconSoundOn");
+            const iconOff = document.getElementById("iconSoundOff");
+            const btn = document.getElementById("muteButton");
+
+            if (isMuted) {
+              iconOn.classList.add("hidden");
+              iconOff.classList.remove("hidden");
+              btn.classList.replace("bg-slate-600/80", "bg-red-500/80"); // Visuaalinen indikaattori
+              btn.classList.replace("hover:bg-slate-600", "hover:bg-red-500");
+            } else {
+              iconOn.classList.remove("hidden");
+              iconOff.classList.add("hidden");
+              btn.classList.replace("bg-red-500/80", "bg-slate-600/80");
+              btn.classList.replace("hover:bg-red-500", "hover:bg-slate-600");
+            }
+          });
+
         window.addEventListener("resize", updateCanvasSize);
 
         requestAnimationFrame(animate);
