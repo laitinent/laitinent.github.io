@@ -28,18 +28,39 @@
     </style>
   </head>
   <body class="p-4 flex flex-col items-center justify-center min-h-screen">
-    <div class="text-white text-center mb-4 z-10">
-      <h1 class="text-3xl font-bold mb-1">Piirrä ja Kasaa</h1>
-      <p class="text-gray-400 text-sm">
-        Nyt voit piirtää myös koveria muotoja (esim. kupin)!
-      </p>
+    <div class="fixed top-4 left-4 text-white z-10 pointer-events-none">
+      <h1 class="text-2xl font-bold mb-1 opacity-80">Piirrä ja Kasaa</h1>
     </div>
 
-    <div class="relative w-full max-w-lg aspect-square">
+    <!-- Canvas container changes for fullscreen with margins -->
+    <div class="relative w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] m-4">
       <canvas id="physicsCanvas" class="w-full h-full block"></canvas>
 
       <!-- Kontrollit -->
+      <!-- Kontrollit -->
       <div class="absolute top-4 right-4 flex gap-2">
+        <!-- Gravity-nappi -->
+        <button
+          id="gravityButton"
+          class="bg-slate-600/80 hover:bg-slate-600 text-white p-2 rounded-lg shadow-lg transition backdrop-blur-sm"
+          title="Ota kallistusohjaus käyttöön"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+
         <!-- Mute-nappi -->
         <button
           id="muteButton"
@@ -111,7 +132,11 @@
         dynamicBodies = [];
 
       let isDrawing = false;
+
       let drawPath = [];
+
+      let gravityEnabled = false;
+      const MAX_GRAVITY = 20;
 
       // --- Äänimanageri ---
       const SoundManager = {
@@ -246,8 +271,17 @@
         const container = canvas.parentElement;
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
+
+        // Päivitä lattian sijainti ja koko vastaamaan uutta canvasia
         if (world && groundBody) {
-          groundBody.position = [pxToM(canvas.width) / 2, 0];
+          const groundY = 0; // Lattia on aina y=0 (maailmakoordinaateissa)
+          // Lattian keskipiste X-suunnassa
+          groundBody.position = [pxToM(canvas.width) / 2, groundY];
+
+          // Päivitä lattian muodon koko kattamaan koko uusi leveys
+          if (groundBody.shapes.length > 0) {
+            groundBody.shapes[0].width = pxToM(canvas.width) + 100; // Extra leveyttä varmuuden vuoksi
+          }
         }
       }
 
@@ -557,6 +591,141 @@
         dynamicBodies = [];
       }
 
+      // --- Gravity Control ---
+
+      function handleOrientation(event) {
+        if (!gravityEnabled) return;
+
+        // Gamma: left to right motion (-90 to 90) -> X gravity
+        // Beta: front to back motion (-180 to 180) -> Y gravity
+
+        let x = event.gamma;
+        let y = event.beta;
+
+        // Rajoitetaan arvoja ja poistetaan kohinaa
+        if (!x) x = 0;
+        if (!y) y = 0;
+
+        // Portrait mode mapping
+        // Puhelin pystyasennossa (beta ~90) -> gravity Y = -9.82
+        // Puhelin vaaka-asennossa (gamma) -> gravity X
+
+        // Yksinkertainen mappaus:
+        // Beta 90 = pysty -> Y gravity negatiivinen (alas)
+        // Beta 0 = makaa pöydällä -> Y gravity 0
+
+        // Säädetään herkkyyttä
+        const gx = (x / 45) * 10;
+        const gy = ((y - 45) / 45) * 10 - 5; // Offset 45 astetta "mukavaan" katselukulmaan
+
+        // Tai yksinkertaisemmin suoraan painovoimavektorin kääntö
+        // Mutta p2.js gravity on globaali [x, y]
+
+        // Otetaan käyttöön intuitiivisempi malli:
+        // Laite pystyssä tasolla: painovoima alas.
+        // Kallistus oikealle -> painovoima oikealle.
+
+        const gravityScale = 20;
+        const radX = (x * Math.PI) / 180;
+        const radY = (y * Math.PI) / 180;
+
+        world.gravity[0] = Math.sin(radX) * gravityScale;
+        world.gravity[1] = -Math.sin(radY) * gravityScale; // Negatiivinen koska Y ylös on positiivinen p2:ssa?
+        // Default p2 gravity on [0, -9.82], eli Y-akseli osoittaa ylös
+        // Joten kun puhelin on pystyssä (beta=90), painovoiman pitää olla negatiivinen Y.
+
+        // Beta ~90 -> sin(90) = 1 -> haluamme -g. Eli -sin(beta).
+        // Mutta "nolla" asento on usein ~45 astetta kädessä.
+        // Käytetään suoraa mappia:
+
+        /*
+            Device Orientation Coordinates:
+            x (gamma): -90 (left) to 90 (right)
+            y (beta): -180 to 180 (front/back)
+          */
+
+        // X-akseli: gamma
+        world.gravity[0] = (x / 45) * 9.82;
+
+        // Y-akseli: beta.
+        // Kun beta = 90 (pystyssä), gravity Y = -9.82
+        // Kun beta = 0 (makaa), gravity Y = 0 (tai -9.82 Z-akselilla, joka ei vaikuta 2D)
+        // Tehdään niin että kun puhelin on pystyssä, painovoima vetää näytön "alas".
+        // Näytön "alas" on canvasissa -Y.
+
+        // Korjataan logiikkaa kokeilemalla:
+        // Beta kasvaa kun puhelimen yläosa nousee.
+        // Haluamme että painovoima vetää alas (-Y) kun puhelin on pystyssä.
+        world.gravity[1] = -(y / 90) * 9.82 * 1.5;
+
+        // Rajoitetaan
+        world.gravity[0] = Math.max(
+          -MAX_GRAVITY,
+          Math.min(MAX_GRAVITY, world.gravity[0])
+        );
+        world.gravity[1] = Math.max(
+          -MAX_GRAVITY,
+          Math.min(MAX_GRAVITY, world.gravity[1])
+        );
+      }
+
+      function toggleGravity() {
+        const btn = document.getElementById("gravityButton");
+
+        if (!gravityEnabled) {
+          // Enable
+          if (
+            typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function"
+          ) {
+            // iOS 13+
+            DeviceOrientationEvent.requestPermission()
+              .then((response) => {
+                if (response === "granted") {
+                  gravityEnabled = true;
+                  window.addEventListener(
+                    "deviceorientation",
+                    handleOrientation
+                  );
+                  activateGravityUI(true);
+                } else {
+                  alert("Lupa evätty");
+                }
+              })
+              .catch(console.error);
+          } else {
+            // Android / Old iOS / Desktop
+            gravityEnabled = true;
+            window.addEventListener("deviceorientation", handleOrientation);
+            activateGravityUI(true);
+
+            // Testaus/Desktop fallback "hiiri-painovoimalle" jos halutaan? Ei nyt.
+            if (!window.DeviceOrientationEvent) {
+              alert("Laitteesi ei tue kallistusta tai selain ei salli sitä.");
+              // Palautetaan tila jotta ei jää jumiin
+              gravityEnabled = false;
+            }
+          }
+        } else {
+          // Disable
+          gravityEnabled = false;
+          window.removeEventListener("deviceorientation", handleOrientation);
+          world.gravity = [0, -9.82]; // Reset gravity
+          activateGravityUI(false);
+        }
+      }
+
+      function activateGravityUI(active) {
+        const btn = document.getElementById("gravityButton");
+        if (active) {
+          btn.classList.replace("bg-slate-600/80", "bg-green-600/80");
+          btn.classList.replace("hover:bg-slate-600", "hover:bg-green-600");
+        } else {
+          btn.classList.replace("bg-green-600/80", "bg-slate-600/80");
+          btn.classList.replace("hover:bg-green-600", "hover:bg-slate-600");
+        }
+      }
+
       window.onload = function () {
         initCanvas();
         initPhysicsWorld();
@@ -569,6 +738,10 @@
         document
           .getElementById("resetButton")
           .addEventListener("click", resetSimulation);
+
+        document
+          .getElementById("gravityButton")
+          .addEventListener("click", toggleGravity);
 
         document
           .getElementById("muteButton")
