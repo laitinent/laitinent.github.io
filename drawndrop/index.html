@@ -33,7 +33,11 @@
     </div>
 
     <!-- Canvas container changes for fullscreen with margins -->
-    <div class="relative w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] m-4">
+    <!-- h-[calc(100dvh-5rem)]: Use dynamic viewport height - 5rem to account for safe areas/margins -->
+    <!-- mb-safe: standard Tailwind doesn't have safe-area utils by default, but we can use padding-bottom with env() via arbitrary values if needed, or just generous margin -->
+    <div
+      class="relative w-[calc(100vw-2rem)] h-[calc(100dvh-5rem)] mx-4 mt-4 mb-20"
+    >
       <canvas id="physicsCanvas" class="w-full h-full block"></canvas>
 
       <!-- Kontrollit -->
