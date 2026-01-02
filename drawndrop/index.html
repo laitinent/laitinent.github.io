@@ -27,7 +27,7 @@
       }
     </style>
   </head>
-  <body class="p-4 flex flex-col items-center justify-center min-h-screen">
+  <body class="flex flex-col items-center justify-center min-h-screen">
     <div class="fixed top-4 left-4 text-white z-10 pointer-events-none">
       <h1 class="text-2xl font-bold mb-1 opacity-80">Piirrä ja Kasaa</h1>
     </div>
@@ -35,9 +35,7 @@
     <!-- Canvas container changes for fullscreen with margins -->
     <!-- h-[calc(100dvh-5rem)]: Use dynamic viewport height - 5rem to account for safe areas/margins -->
     <!-- mb-safe: standard Tailwind doesn't have safe-area utils by default, but we can use padding-bottom with env() via arbitrary values if needed, or just generous margin -->
-    <div
-      class="relative w-[calc(100vw-2rem)] h-[calc(100dvh-5rem)] mx-4 mt-4 mb-20"
-    >
+    <div class="relative w-[calc(100vw-1.5rem)] h-[calc(100dvh-1.5rem)] m-3">
       <canvas id="physicsCanvas" class="w-full h-full block"></canvas>
 
       <!-- Kontrollit -->
