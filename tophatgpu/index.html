@@ -11,18 +11,43 @@
       }
       #ui {
         position: fixed;
-        bottom: 20px;
+        bottom: max(20px, env(safe-area-inset-bottom, 0px));
         left: 50%;
         transform: translateX(-50%);
         display: flex;
-        gap: 10px;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 95vw;
+        padding: 0 8px;
       }
       button {
-        padding: 10px 20px;
+        padding: 12px 22px;
+        font-size: 16px;
+        min-height: 48px;
+        min-width: 48px;
+        border-radius: 8px;
+        border: 2px solid #555;
+        background: #222;
+        color: #ccc;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        white-space: nowrap;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      button:active {
+        transform: scale(0.95);
       }
       button.active {
         background: #2a7fff;
+        border-color: #5aa0ff;
         color: white;
+      }
+      #thresholdSlider {
+        width: clamp(100px, 30vw, 200px);
+        height: 32px;
       }
       #debugOverlay {
         position: fixed;
@@ -40,8 +65,7 @@
   <body>
     <div id="ui">
       <button id="none" class="active">Original 1x</button>
-      <button id="white">White TopHat</button>
-      <button id="black">Black TopHat</button>
+      <button id="tophat">TopHat: Off</button>
       <button id="threshold">Threshold</button>
       <label style="display: flex; align-items: center; gap: 8px">
         <input
@@ -50,9 +74,8 @@
           min="0"
           max="100"
           value="50"
-          style="width: 200px"
         />
-        <span id="thresholdVal">50%</span>
+        <span id="thresholdVal" style="color:#ccc;font-size:16px">50%</span>
       </label>
     </div>
 
@@ -781,6 +804,11 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 
       let lastLabelCountTime = 0;
 
+      // TopHat 3-state toggle: off → white → black → off
+      const TOPHAT_STATES = ["none", "white", "black"];
+      const TOPHAT_LABELS = ["TopHat: Off", "White TopHat", "Black TopHat"];
+      let tophatIdx = 0;
+
       document.getElementById("none").onclick = () => {
         kernelIdx = (kernelIdx + 1) % KERNEL_SIZES.length;
         kernelK = KERNEL_SIZES[kernelIdx];
@@ -789,8 +817,16 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
         document.getElementById("none").textContent = `Original ${KERNEL_LABELS[kernelIdx]}`;
         thresholdDirty = true;
       };
-      document.getElementById("white").onclick = () => setMode("white");
-      document.getElementById("black").onclick = () => setMode("black");
+
+      document.getElementById("tophat").onclick = () => {
+        tophatIdx = (tophatIdx + 1) % TOPHAT_STATES.length;
+        const newMode = TOPHAT_STATES[tophatIdx];
+        const btn = document.getElementById("tophat");
+        btn.textContent = TOPHAT_LABELS[tophatIdx];
+        btn.classList.toggle("active", newMode !== "none");
+        setMode(newMode);
+      };
+
       document.getElementById("threshold").onclick = () => toggleThreshold();
 
       // Threshold slider wiring: moving the slider sets manual threshold
@@ -815,10 +851,8 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
       function setMode(m) {
         mode = m;
         thresholdDirty = true; // recompute if thresholding is active
-        document
-          .querySelectorAll("button")
-          .forEach((b) => b.classList.remove("active"));
-        document.getElementById(m).classList.add("active");
+        // update active state for non-tophat buttons
+        document.getElementById("none").classList.toggle("active", m === "none" && !thresholdOn);
         if (thresholdOn) {
           document.getElementById("threshold").classList.add("active");
         }
