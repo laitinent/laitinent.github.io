@@ -1,0 +1,895 @@
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  #c {
+    display: block;
+    width: 100%;
+    height: 520px;
+  }
+  #hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    font-family: var(--font-sans, sans-serif);
+  }
+  .panel {
+    position: absolute;
+    background: rgba(10, 20, 40, 0.72);
+    border: 0.5px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    color: #e8f0ff;
+    padding: 10px 14px;
+    font-size: 13px;
+    pointer-events: all;
+  }
+  #compass-panel {
+    top: 12px;
+    left: 12px;
+    width: 160px;
+  }
+  #speed-panel {
+    top: 12px;
+    right: 12px;
+    width: 150px;
+  }
+  #wind-panel {
+    bottom: 12px;
+    left: 12px;
+    width: 160px;
+  }
+  #controls-panel {
+    bottom: 12px;
+    right: 12px;
+    width: 180px;
+  }
+  .label {
+    color: rgba(200, 220, 255, 0.6);
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+  .val {
+    font-size: 22px;
+    font-weight: 500;
+    color: #a8f0ff;
+  }
+  .sub {
+    font-size: 11px;
+    color: rgba(200, 220, 255, 0.55);
+    margin-top: 1px;
+  }
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .ctrl-row label {
+    font-size: 11px;
+    color: rgba(200, 220, 255, 0.6);
+    width: 58px;
+  }
+  .ctrl-row input[type="range"] {
+    flex: 1;
+    cursor: pointer;
+  }
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 6px;
+  }
+  .btn {
+    background: rgba(30, 60, 120, 0.7);
+    border: 0.5px solid rgba(100, 160, 255, 0.4);
+    color: #a8c8ff;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn:active {
+    background: rgba(60, 120, 200, 0.7);
+  }
+  .sail-status {
+    margin-top: 6px;
+    font-size: 11px;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .green {
+    background: #4ef0a0;
+  }
+  .yellow {
+    background: #f0d050;
+  }
+  .red {
+    background: #f05050;
+  }
+</style>
+<div style="position: relative; width: 100%; height: 520px">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <div class="panel" id="compass-panel">
+      <div class="label">Heading</div>
+      <div class="val" id="hdg-val">200°</div>
+      <div class="sub" id="point-of-sail">Beam Reach</div>
+      <canvas
+        id="compass-canvas"
+        width="120"
+        height="56"
+        style="margin-top: 6px; display: block"
+      ></canvas>
+    </div>
+    <div class="panel" id="speed-panel">
+      <div class="label">Speed</div>
+      <div class="val" id="spd-val">0.0 kn</div>
+      <canvas
+        id="speedometer"
+        width="120"
+        height="60"
+        style="display: block; margin: 4px auto 0"
+      ></canvas>
+    </div>
+    <div class="panel" id="wind-panel">
+      <div class="label">Wind</div>
+      <div class="val" id="wind-val">12 kn</div>
+      <div class="sub" id="wind-dir-txt">from NW (315°)</div>
+      <div class="sail-status">
+        <span class="dot" id="sail-dot"></span
+        ><span id="sail-txt">Adjust trim</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Wind spd</label
+        ><input
+          type="range"
+          id="wind-spd-slider"
+          min="3"
+          max="25"
+          value="12"
+          step="1"
+        />
+      </div>
+    </div>
+    <div class="panel" id="controls-panel">
+      <div class="label" style="margin-bottom: 5px">Sail trim</div>
+      <div class="ctrl-row">
+        <label>Ease/Trim</label
+        ><input
+          type="range"
+          id="sail-trim"
+          min="-1"
+          max="1"
+          value="0"
+          step="0.02"
+          style="flex: 1"
+        />
+      </div>
+      <div
+        style="
+          font-size: 10px;
+          color: rgba(200, 220, 255, 0.45);
+          margin-top: 2px;
+        "
+      >
+        ← ease out &nbsp;&nbsp; trim in →
+      </div>
+      <div class="label" style="margin-top: 8px; margin-bottom: 4px">Steer</div>
+      <div class="btn-row">
+        <button class="btn" id="btn-left">◀ Port</button>
+        <button class="btn" id="btn-right">Stbd ▶</button>
+      </div>
+      <div
+        style="
+          font-size: 10px;
+          color: rgba(200, 220, 255, 0.45);
+          margin-top: 4px;
+          text-align: center;
+        "
+      >
+        Hold or ← → | scroll zoom
+      </div>
+    </div>
+  </div>
+</div>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@latest/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@latest/examples/jsm/"
+    }
+  }
+</script>
+<script type="module">
+  import * as THREE from "three";
+
+  const canvas = document.getElementById("c");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a3a5c);
+  scene.fog = new THREE.Fog(0x1a3a5c, 90, 230);
+  const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 300);
+
+  /**
+   * Resizes the renderer and updates camera aspect to match the canvas element.
+   * @returns {void}
+   */
+  function resize() {
+    const w = canvas.clientWidth,
+      h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  let zoomOffset = 0;
+  canvas.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      zoomOffset = Math.max(0, Math.min(18, zoomOffset + e.deltaY * 0.025));
+    },
+    { passive: false },
+  );
+
+  scene.add(new THREE.AmbientLight(0x8899cc, 0.9));
+  const sun = new THREE.DirectionalLight(0xfff0cc, 1.4);
+  sun.position.set(50, 80, 30);
+  scene.add(sun);
+  scene.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(240, 16, 8),
+      new THREE.MeshBasicMaterial({ color: 0x4a90c0, side: THREE.BackSide }),
+    ),
+  );
+
+  const oceanGeo = new THREE.PlaneGeometry(400, 400, 60, 60);
+  const oceanMesh = new THREE.Mesh(
+    oceanGeo,
+    new THREE.MeshPhongMaterial({
+      color: 0x1a6090,
+      shininess: 70,
+      specular: 0x44aadd,
+    }),
+  );
+  oceanMesh.rotation.x = -Math.PI / 2;
+  oceanMesh.position.y = -0.1;
+  scene.add(oceanMesh);
+
+  const waveGeo = new THREE.PlaneGeometry(400, 400, 80, 80);
+  const waveMesh = new THREE.Mesh(
+    waveGeo,
+    new THREE.MeshPhongMaterial({
+      color: 0x1e90bb,
+      transparent: true,
+      opacity: 0.25,
+      shininess: 100,
+      specular: 0x88ccff,
+    }),
+  );
+  waveMesh.rotation.x = -Math.PI / 2;
+  waveMesh.position.y = 0.01;
+  scene.add(waveMesh);
+
+  const boatGroup = new THREE.Group();
+  scene.add(boatGroup);
+
+  const matHull = new THREE.MeshPhongMaterial({
+    color: 0xf0e0c0,
+    shininess: 40,
+  });
+  const matDeck = new THREE.MeshPhongMaterial({ color: 0xc8995a });
+  const matCabin = new THREE.MeshPhongMaterial({ color: 0xe0ccaa });
+  const matCock = new THREE.MeshPhongMaterial({ color: 0xa07840 });
+  const matMast = new THREE.MeshPhongMaterial({
+    color: 0xddddcc,
+    shininess: 50,
+  });
+  const matWire = new THREE.MeshBasicMaterial({ color: 0xbbbbaa });
+  const matSail = new THREE.MeshPhongMaterial({
+    color: 0xf8f8f0,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.92,
+    shininess: 20,
+  });
+
+  /**
+   * Creates a mesh, applies transform, and attaches it to the provided parent object.
+   * @param {THREE.Object3D} parent Parent object to receive the mesh.
+   * @param {THREE.BufferGeometry} geo Geometry for the mesh.
+   * @param {THREE.Material} mat Material for the mesh.
+   * @param {number} [px=0] Position X.
+   * @param {number} [py=0] Position Y.
+   * @param {number} [pz=0] Position Z.
+   * @param {number} [rx=0] Rotation X in radians.
+   * @param {number} [ry=0] Rotation Y in radians.
+   * @param {number} [rz=0] Rotation Z in radians.
+   * @returns {THREE.Mesh} Created mesh instance.
+   */
+  function addM(
+    parent,
+    geo,
+    mat,
+    px = 0,
+    py = 0,
+    pz = 0,
+    rx = 0,
+    ry = 0,
+    rz = 0,
+  ) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz);
+    m.rotation.set(rx, ry, rz);
+    parent.add(m);
+    return m;
+  }
+
+  // Hull — bow +Z, stern -Z
+  const hs = new THREE.Shape();
+  hs.moveTo(-1.05, 0);
+  hs.lineTo(-1.3, -0.5);
+  hs.lineTo(-0.65, -0.92);
+  hs.lineTo(0.65, -0.92);
+  hs.lineTo(1.3, -0.5);
+  hs.lineTo(1.05, 0);
+  hs.lineTo(-1.05, 0);
+  addM(
+    boatGroup,
+    new THREE.ExtrudeGeometry(hs, {
+      steps: 1,
+      depth: 4.4,
+      bevelEnabled: true,
+      bevelThickness: 0.12,
+      bevelSize: 0.1,
+      bevelSegments: 3,
+    }),
+    matHull,
+    0,
+    0,
+    -2.2,
+  );
+  addM(boatGroup, new THREE.BoxGeometry(2.0, 0.08, 4.4), matDeck, 0, 0.06, 0);
+  addM(boatGroup, new THREE.BoxGeometry(1.3, 0.5, 1.5), matCabin, 0, 0.36, 0.6);
+  addM(
+    boatGroup,
+    new THREE.BoxGeometry(1.1, 0.13, 1.0),
+    matCock,
+    0,
+    0.09,
+    -1.2,
+  );
+  addM(
+    boatGroup,
+    new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6),
+    new THREE.MeshPhongMaterial({ color: 0x885522 }),
+    0,
+    0.22,
+    -1.6,
+    0,
+    0,
+    Math.PI / 2,
+  );
+
+  // Mast at x=0, z=0.5 (forward of cockpit)
+  addM(
+    boatGroup,
+    new THREE.CylinderGeometry(0.04, 0.055, 9.6, 8),
+    matMast,
+    0,
+    4.88,
+    0.5,
+  );
+  // Shrouds
+  [-0.9, 0.9].forEach((x) =>
+    addM(
+      boatGroup,
+      new THREE.CylinderGeometry(0.006, 0.006, 4.2, 4),
+      matWire,
+      x,
+      2.7,
+      0.5,
+      0,
+      0,
+      x > 0 ? -0.21 : 0.21,
+    ),
+  );
+  // Forestay
+  addM(
+    boatGroup,
+    new THREE.CylinderGeometry(0.006, 0.006, 10.0, 4),
+    matWire,
+    0,
+    5.1,
+    -1.4,
+    1.18,
+    0,
+    0,
+  );
+
+  // ── SAIL PIVOT ────────────────────────────────────────────────────────────────
+  // Pivot is at mast position, at boom height (deck + small clearance)
+  const BOOM_HEIGHT = 0.92; // local Y above deck where boom attaches to mast
+  const BOOM_LEN = 3.5; // boom runs along local -X of sailPivot after setup
+
+  // sailPivot rotates around Y to swing boom+sail port/starboard
+  const sailPivot = new THREE.Group();
+  sailPivot.position.set(0, BOOM_HEIGHT, 0.5); // at mast base
+  boatGroup.add(sailPivot);
+
+  // ── KEY INSIGHT ──────────────────────────────────────────────────────────────
+  // Inside sailPivot local space:
+  //   • The LUFF (leading edge, at mast) is at x=0, z=0, y=0..sailHeight
+  //   • The BOOM runs along +X from x=0 to x=BOOM_LEN  (when sailPivot.rotation.y=0 boom points stbd)
+  //     When sailPivot rotates by angle θ, the boom swings to the correct side
+  //   • Sail foot follows the boom along +X at y=0
+  //   • Sail rises from y=0 (foot/boom) to y=sailHeight (head)
+  //   • Sail width at each height = footWidth * (1 - t * taper)
+  //
+  // Sail geometry: rows = height, cols = along boom (0..1 maps to 0..boomLen)
+
+  const SAIL_H = 8.5;
+  const SR = 16,
+    SC = 12;
+
+  const sailGeo = (() => {
+    const geo = new THREE.BufferGeometry();
+    const v = [],
+      uv = [],
+      idx = [];
+    for (let r = 0; r <= SR; r++) {
+      const t = r / SR;
+      const h = t * SAIL_H;
+      // Sail gets narrower toward the top (taper). foot width = BOOM_LEN, head ≈ 0
+      const w = BOOM_LEN * (1 - t * 0.88);
+      for (let c = 0; c <= SC; c++) {
+        const u = c / SC;
+        // x runs along boom (0 = mast/luff, w = clew/leech)
+        // z = belly (filled in during animation)
+        v.push(u * w, h, 0);
+        uv.push(u, t);
+      }
+    }
+    for (let r = 0; r < SR; r++)
+      for (let c = 0; c < SC; c++) {
+        const a = r * (SC + 1) + c,
+          b = a + 1,
+          d = a + SC + 1,
+          e = d + 1;
+        idx.push(a, d, b, b, d, e);
+      }
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  })();
+  sailPivot.add(new THREE.Mesh(sailGeo, matSail));
+
+  // Boom: runs along +X from x=0 to x=BOOM_LEN, at y=0 of sailPivot (= BOOM_HEIGHT world)
+  // CylinderGeometry is along Y by default → rotate 90° around Z to align with X
+  addM(
+    sailPivot,
+    new THREE.CylinderGeometry(0.027, 0.034, BOOM_LEN, 8),
+    matMast,
+    BOOM_LEN / 2,
+    0,
+    0,
+    0,
+    0,
+    Math.PI / 2,
+  );
+
+  // Battens (horizontal lines across sail at various heights)
+  [0.2, 0.4, 0.6, 0.8].forEach((t) => {
+    const w = BOOM_LEN * (1 - t * 0.88);
+    addM(
+      sailPivot,
+      new THREE.CylinderGeometry(0.007, 0.007, w * 0.9, 4),
+      matWire,
+      w * 0.45,
+      t * SAIL_H,
+      0.02,
+      0,
+      0,
+      Math.PI / 2,
+    );
+  });
+
+  // ── STATE ────────────────────────────────────────────────────────────────────
+  let boatHeading = 200,
+    windDir = 315,
+    windSpeed = 12;
+  let boatSpeed = 0,
+    sailTrimSlider = 0,
+    boatTilt = 0;
+  let waveTime = 0,
+    trimQuality = 0;
+  let steerLeft = false,
+    steerRight = false;
+  let worldX = 0,
+    worldZ = 0;
+
+  /**
+   * Computes the absolute apparent wind angle relative to the boat heading.
+   * @returns {number} Apparent angle in degrees within range [0, 180].
+   */
+  function apparentAngle() {
+    let a = (((windDir - boatHeading) % 360) + 360) % 360;
+    return a > 180 ? 360 - a : a;
+  }
+  /**
+   * Categorizes sailing point-of-sail from apparent wind angle.
+   * @param {number} a Apparent wind angle in degrees.
+   * @returns {{name: string, color: string, factor: number}} Sailing state descriptor.
+   */
+  function pointOfSail(a) {
+    if (a < 40) return { name: "In Irons", color: "#f05050", factor: 0 };
+    if (a < 60) return { name: "Close Hauled", color: "#f0d050", factor: 0.72 };
+    if (a < 100) return { name: "Close Reach", color: "#4ef0a0", factor: 0.95 };
+    if (a < 140) return { name: "Beam Reach", color: "#4ef0a0", factor: 1.0 };
+    if (a < 160) return { name: "Broad Reach", color: "#4ef0a0", factor: 0.88 };
+    return { name: "Running", color: "#f0d050", factor: 0.65 };
+  }
+  // Optimal pivot angle (0=centreline close hauled, π/2=fully eased running)
+  /**
+   * Computes the optimal boom/sail pivot angle for a given apparent wind angle.
+   * @param {number} a Apparent wind angle in degrees.
+   * @returns {number} Optimal pivot angle in radians.
+   */
+  function optPivotAngle(a) {
+    return a < 40
+      ? 0.05
+      : Math.min(
+          (Math.PI / 2) * 0.95,
+          ((a - 40) / 140) * ((Math.PI / 2) * 0.95),
+        );
+  }
+
+  /**
+   * Computes final signed sail pivot angle from apparent wind and trim input.
+   * @param {number} appAng Apparent wind angle in degrees.
+   * @param {number} trimSlider Trim control in range [-1, 1].
+   * @param {number} windSide Wind side sign, 1 for starboard and -1 for port.
+   * @returns {number} Signed sail pivot angle in radians.
+   */
+  function getSailPivotAngle(appAng, trimSlider, windSide) {
+    const base = optPivotAngle(appAng);
+    // trimSlider: +1=trim in (reduce angle), -1=ease out (increase angle)
+    const offset = -trimSlider * (Math.PI / 6);
+    const clamped = Math.max(0.04, Math.min(Math.PI / 2, base + offset));
+    return windSide * clamped;
+  }
+
+  /**
+   * Deforms the sail mesh each frame to simulate billow and flutter.
+   * @param {number} t Simulation time in seconds.
+   * @param {number} q Trim quality in range [0, 1].
+   * @returns {void}
+   */
+  function animateSail(t, q) {
+    const pos = sailGeo.attributes.position;
+    for (let r = 0; r <= SR; r++) {
+      const frac = r / SR,
+        h = frac * SAIL_H,
+        w = BOOM_LEN * (1 - frac * 0.88);
+      for (let c = 0; c <= SC; c++) {
+        const u = c / SC,
+          i = r * (SC + 1) + c;
+        // belly billows in +Z (away from mast face toward viewer on leeward side)
+        const belly =
+          Math.sin(u * Math.PI) *
+          q *
+          0.28 *
+          (windSpeed / 12) *
+          (1 - frac * 0.25);
+        const flutter =
+          Math.max(0, 1 - q) *
+          0.13 *
+          (Math.sin(t * 9 + r * 0.6 + c * 0.4) + Math.sin(t * 6.5 + r * 0.9));
+        pos.setXYZ(i, u * w, h, belly + flutter * 0.5);
+      }
+    }
+    pos.needsUpdate = true;
+    sailGeo.computeVertexNormals();
+  }
+
+  /**
+   * Renders the speedometer arc and needle on the HUD canvas.
+   * @param {number} spd Current boat speed in knots.
+   * @param {number} max Maximum displayed speed in knots.
+   * @returns {void}
+   */
+  function drawSpeedo(spd, max) {
+    const cv = document.getElementById("speedometer"),
+      ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, 120, 60);
+    const cx = 60,
+      cy = 56,
+      r = 46;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI, 0);
+    ctx.strokeStyle = "rgba(100,150,220,0.22)";
+    ctx.lineWidth = 9;
+    ctx.stroke();
+    const f = Math.min(spd / max, 1);
+    if (f > 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI, Math.PI + f * Math.PI);
+      const g = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
+      g.addColorStop(0, "#4ef0a0");
+      g.addColorStop(0.6, "#a8f0ff");
+      g.addColorStop(1, "#ff9955");
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 9;
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+    const na = Math.PI + f * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + (r - 7) * Math.cos(na), cy + (r - 7) * Math.sin(na));
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+  }
+
+  /**
+   * Renders compass rose and relative wind arrow on the HUD canvas.
+   * @param {number} hdg Boat heading in degrees.
+   * @param {number} wdir Wind direction in degrees.
+   * @returns {void}
+   */
+  function drawCompass(hdg, wdir) {
+    const cv = document.getElementById("compass-canvas"),
+      ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, 120, 56);
+    const cx = 28,
+      cy = 28,
+      r = 21;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(100,150,220,0.35)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ["N", "E", "S", "W"].forEach((d, i) => {
+      const a = (i / 4) * Math.PI * 2 - Math.PI / 2 - (hdg * Math.PI) / 180;
+      ctx.fillStyle = d === "N" ? "#ff7070" : "rgba(200,220,255,0.7)";
+      ctx.font = "9px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(d, cx + (r + 8) * Math.cos(a), cy + (r + 8) * Math.sin(a));
+    });
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r + 4);
+    ctx.lineTo(cx - 4, cy + 3);
+    ctx.lineTo(cx + 4, cy + 3);
+    ctx.fillStyle = "#a8f0ff";
+    ctx.fill();
+    const wa = ((wdir - hdg) * Math.PI) / 180 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + (r - 4) * Math.cos(wa), cy + (r - 4) * Math.sin(wa));
+    ctx.lineTo(cx - (r - 14) * Math.cos(wa), cy - (r - 14) * Math.sin(wa));
+    ctx.strokeStyle = "#f0d050";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(
+      cx + (r - 4) * Math.cos(wa),
+      cy + (r - 4) * Math.sin(wa),
+      3,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fillStyle = "#f0d050";
+    ctx.fill();
+    ctx.fillStyle = "rgba(200,220,255,0.65)";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(Math.round(windSpeed) + "kn", 62, 14);
+    ctx.fillStyle = "#f0d050";
+    ctx.fillText("Wind →", 62, 28);
+    ctx.fillStyle = "#a8f0ff";
+    ctx.fillText("Boat ▲", 62, 42);
+  }
+
+  let lastT = 0;
+  /**
+   * Main frame loop: updates simulation state, HUD, and performs rendering.
+   * @param {number} ts High-resolution timestamp supplied by requestAnimationFrame.
+   * @returns {void}
+   */
+  function animate(ts) {
+    requestAnimationFrame(animate);
+    const dt = Math.min((ts - lastT) / 1000, 0.05);
+    lastT = ts;
+    waveTime += dt;
+
+    if (steerLeft) boatHeading = (boatHeading - 1.1 + 360) % 360;
+    if (steerRight) boatHeading = (boatHeading + 1.1) % 360;
+
+    const appAng = apparentAngle(),
+      pos = pointOfSail(appAng);
+    const optAngle = optPivotAngle(appAng);
+    // Compare user's trim slider position to what optimal sail angle would be
+    const userAngleFrac = (sailTrimSlider + 1) / 2; // 0=fully eased, 1=fully trimmed
+    const optAngleFrac = 1 - optAngle / (Math.PI / 2);
+    trimQuality = Math.max(
+      0,
+      1 - Math.abs(userAngleFrac - optAngleFrac) / 0.55,
+    );
+
+    const tgtSpd = pos.factor * trimQuality * (windSpeed / 12) * 8.5;
+    boatSpeed += (tgtSpd - boatSpeed) * dt * 0.85;
+    boatSpeed = Math.max(0, boatSpeed);
+    const tgtTilt = -boatSpeed * 0.046 * (appAng < 120 ? 1 : 0.35);
+    boatTilt += (tgtTilt - boatTilt) * dt * 1.6;
+
+    const hdgRad = (boatHeading * Math.PI) / 180;
+    worldX += Math.sin(hdgRad) * boatSpeed * dt * 0.3;
+    worldZ -= Math.cos(hdgRad) * boatSpeed * dt * 0.3;
+
+    const wp = waveGeo.attributes.position;
+    for (let i = 0; i < wp.count; i++) {
+      const x = wp.getX(i),
+        z = wp.getZ(i);
+      wp.setY(
+        i,
+        Math.sin(x * 0.18 + waveTime * 0.9) * 0.25 +
+          Math.sin(z * 0.12 + waveTime * 0.7) * 0.2 +
+          Math.sin((x + z) * 0.08 + waveTime * 1.1) * 0.12,
+      );
+    }
+    wp.needsUpdate = true;
+    waveGeo.computeVertexNormals();
+
+    // Wind side: which side is wind from relative to boat
+    const relWind = (windDir - boatHeading + 360) % 360;
+    const windSide = relWind < 180 ? 1 : -1;
+
+    sailPivot.rotation.y = getSailPivotAngle(appAng, sailTrimSlider, windSide);
+    animateSail(waveTime, trimQuality);
+
+    boatGroup.position.set(
+      worldX,
+      Math.sin(waveTime * 0.85) * 0.06 + Math.sin(waveTime * 1.4) * 0.03,
+      worldZ,
+    );
+    boatGroup.rotation.order = "YXZ";
+    boatGroup.rotation.y = hdgRad;
+    boatGroup.rotation.z = boatTilt;
+    boatGroup.rotation.x = Math.sin(waveTime * 1.05) * 0.02;
+
+    // Camera
+    const cosH = Math.cos(hdgRad),
+      sinH = Math.sin(hdgRad);
+    /**
+     * Converts a local offset in boat space to world coordinates.
+     * @param {number} lx Local X coordinate.
+     * @param {number} ly Local Y coordinate.
+     * @param {number} lz Local Z coordinate.
+     * @returns {THREE.Vector3} World-space vector.
+     */
+    function l2w(lx, ly, lz) {
+      return new THREE.Vector3(
+        boatGroup.position.x + cosH * lx + sinH * lz,
+        boatGroup.position.y + ly,
+        boatGroup.position.z - sinH * lx + cosH * lz,
+      );
+    }
+    camera.position.copy(l2w(0.12, 1.55, -1.5 - zoomOffset));
+    camera.lookAt(l2w(0, 4.0, 6.0));
+
+    // HUD
+    document.getElementById("hdg-val").textContent =
+      Math.round(boatHeading).toString().padStart(3, "0") + "°";
+    document.getElementById("point-of-sail").textContent = pos.name;
+    document.getElementById("point-of-sail").style.color = pos.color;
+    document.getElementById("spd-val").textContent =
+      boatSpeed.toFixed(1) + " kn";
+    const wnames = [
+      "N",
+      "NNE",
+      "NE",
+      "ENE",
+      "E",
+      "ESE",
+      "SE",
+      "SSE",
+      "S",
+      "SSW",
+      "SW",
+      "WSW",
+      "W",
+      "WNW",
+      "NW",
+      "NNW",
+    ];
+    document.getElementById("wind-val").textContent =
+      Math.round(windSpeed) + " kn";
+    document.getElementById("wind-dir-txt").textContent =
+      "from " +
+      wnames[Math.round(windDir / 22.5) % 16] +
+      " (" +
+      Math.round(windDir) +
+      "°)";
+    const dot = document.getElementById("sail-dot"),
+      txt = document.getElementById("sail-txt");
+    if (trimQuality > 0.75) {
+      dot.className = "dot green";
+      txt.textContent = "Sail optimal";
+    } else if (trimQuality > 0.35) {
+      dot.className = "dot yellow";
+      txt.textContent = "Adjust trim";
+    } else {
+      dot.className = "dot red";
+      txt.textContent = "Poor trim";
+    }
+    drawSpeedo(boatSpeed, 12);
+    drawCompass(boatHeading, windDir);
+    renderer.render(scene, camera);
+  }
+
+  document.getElementById("sail-trim").addEventListener("input", (e) => {
+    sailTrimSlider = Number.parseFloat(e.target.value);
+  });
+  document.getElementById("wind-spd-slider").addEventListener("input", (e) => {
+    windSpeed = Number.parseInt(e.target.value, 10);
+  });
+
+  ["btn-left", "btn-right"].forEach((id, i) => {
+    const el = document.getElementById(id);
+    const set = (v) => {
+      i === 0 ? (steerLeft = v) : (steerRight = v);
+    };
+
+    el.style.touchAction = "none";
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      set(true);
+    });
+    el.addEventListener("pointerup", () => set(false));
+    el.addEventListener("pointercancel", () => set(false));
+    el.addEventListener("lostpointercapture", () => set(false));
+    el.addEventListener("pointerleave", (e) => {
+      if (e.buttons === 0) {
+        set(false);
+      }
+    });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") steerLeft = true;
+    if (e.key === "ArrowRight") steerRight = true;
+  });
+  document.addEventListener("keyup", (e) => {
+    if (e.key === "ArrowLeft") steerLeft = false;
+    if (e.key === "ArrowRight") steerRight = false;
+  });
+
+  requestAnimationFrame((ts) => {
+    lastT = ts;
+    animate(ts);
+  });
+</script>
